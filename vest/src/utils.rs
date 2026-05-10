@@ -202,6 +202,14 @@ pub fn set_range<'a>(data: &mut Vec<u8>, i: usize, input: &[u8])
     // data[i..i + input.len()].copy_from_slice(input);
     let mut j = 0;
     while j < input.len()
+        invariant
+            0 <= j <= input@.len(),
+            i + input@.len() <= data@.len(),
+            i + input@.len() <= usize::MAX,
+            data@.len() == old(data)@.len(),
+            forall|k: int| 0 <= k < j ==> data@[i + k] == input@[k],
+            forall|k: int| 0 <= k < data@.len() && (k < i as int || k >= i + input@.len() as int) ==> data@[k] == old(data)@[k],
+        decreases input@.len() - j,
     {
         data.set(i + j, *slice_index_get(input, j));
         j = j + 1;
@@ -217,6 +225,9 @@ pub fn compare_slice<'a, 'b>(x: &'a [u8], y: &'a [u8]) -> (res: bool)
         return false;
     }
     for i in 0..x.len()
+        invariant
+            x.len() == y.len(),
+            forall|k: int| 0 <= k < i ==> x@[k] == y@[k],
     {
         if slice_index_get(x, i) != slice_index_get(y, i) {
             return false;
@@ -242,6 +253,10 @@ pub exec fn init_vec_u8(n: usize) -> (res: Vec<u8>)
     let mut i: usize = 0;
     let mut ret: Vec<u8> = Vec::new();
     while i < n
+        invariant
+            i <= n,
+            ret@.len() == i,
+        decreases n - i,
     {
         ret.push(0);
         i = i + 1

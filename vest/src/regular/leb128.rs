@@ -120,6 +120,167 @@ impl UnsignedLEB128 {
         ensures
             self.spec_serialize(v).len() <= 10,
     {
+        Self::lemma_spec_serialize_length_ind10(v);
+    }
+
+    /// Prove spec_serialize_helper(v).len() <= 10 using a concrete chain of shifts.
+    proof fn lemma_spec_serialize_length_ind10(v: UInt)
+        ensures
+            Self::spec_serialize_helper(v).len() <= 10,
+    {
+        // v >> 63 = 0 or 1 (fits in 1 bit), and 0 or 1 >> 7 = 0.
+        // So after 9 steps of shifting by 7, we always reach a value whose hi is 0.
+        // Chain: length(v >> (7*j)) <= 10 - j for j = 0..9.
+        let v1 = v >> 7u64;
+        let v2 = v1 >> 7u64;
+        let v3 = v2 >> 7u64;
+        let v4 = v3 >> 7u64;
+        let v5 = v4 >> 7u64;
+        let v6 = v5 >> 7u64;
+        let v7 = v6 >> 7u64;
+        let v8 = v7 >> 7u64;
+        let v9 = v8 >> 7u64;
+
+        // v9 = v >> 63.
+        // v9 is 0 or 1 (only the MSB of v).
+        // v9 >> 7 = 0.
+        assert(v9 >> 7u64 == 0u64) by (bit_vector)
+            requires v9 == v8 >> 7u64, v8 == v7 >> 7u64, v7 == v6 >> 7u64, v6 == v5 >> 7u64,
+                     v5 == v4 >> 7u64, v4 == v3 >> 7u64, v3 == v2 >> 7u64, v2 == v1 >> 7u64,
+                     v1 == v >> 7u64;
+        // So spec_serialize_helper(v9).len() = 1 (since hi = v9 >> 7 = 0).
+        // Build the chain bottom-up:
+        Self::lemma_spec_sl_leq1(v9);  // len(v9) <= 1
+        Self::lemma_spec_sl_leq2(v8, v9);  // len(v8) <= 2
+        Self::lemma_spec_sl_leq3(v7, v8, v9);
+        Self::lemma_spec_sl_leq4(v6, v7, v8, v9);
+        Self::lemma_spec_sl_leq5(v5, v6, v7, v8, v9);
+        Self::lemma_spec_sl_leq6(v4, v5, v6, v7, v8, v9);
+        Self::lemma_spec_sl_leq7(v3, v4, v5, v6, v7, v8, v9);
+        Self::lemma_spec_sl_leq8(v2, v3, v4, v5, v6, v7, v8, v9);
+        Self::lemma_spec_sl_leq9(v1, v2, v3, v4, v5, v6, v7, v8, v9);
+        Self::lemma_spec_sl_leq10(v, v1, v2, v3, v4, v5, v6, v7, v8, v9);
+    }
+
+    proof fn lemma_spec_sl_leq1(v0: UInt)
+        requires v0 >> 7u64 == 0u64,
+        ensures Self::spec_serialize_helper(v0).len() <= 1,
+    {}
+
+    proof fn lemma_spec_sl_leq2(v0: UInt, v1: UInt)
+        requires v1 == v0 >> 7u64, Self::spec_serialize_helper(v1).len() <= 1,
+        ensures Self::spec_serialize_helper(v0).len() <= 2,
+    {
+        let hi = v0 >> 7u64;
+        if hi != 0u64 {
+            assert(hi < v0) by (bit_vector) requires hi == v0 >> 7u64, hi != 0u64;
+            assert(hi == v1);
+        }
+    }
+
+    proof fn lemma_spec_sl_leq3(v0: UInt, v1: UInt, v2: UInt)
+        requires v1 == v0 >> 7u64, v2 == v1 >> 7u64, Self::spec_serialize_helper(v2).len() <= 1,
+        ensures Self::spec_serialize_helper(v0).len() <= 3,
+    {
+        let hi = v0 >> 7u64;
+        if hi != 0u64 {
+            assert(hi < v0) by (bit_vector) requires hi == v0 >> 7u64, hi != 0u64;
+            assert(hi == v1);
+            Self::lemma_spec_sl_leq2(v1, v2);
+        }
+    }
+
+    proof fn lemma_spec_sl_leq4(v0: UInt, v1: UInt, v2: UInt, v3: UInt)
+        requires v1 == v0 >> 7u64, v2 == v1 >> 7u64, v3 == v2 >> 7u64,
+                 Self::spec_serialize_helper(v3).len() <= 1,
+        ensures Self::spec_serialize_helper(v0).len() <= 4,
+    {
+        let hi = v0 >> 7u64;
+        if hi != 0u64 {
+            assert(hi < v0) by (bit_vector) requires hi == v0 >> 7u64, hi != 0u64;
+            assert(hi == v1);
+            Self::lemma_spec_sl_leq3(v1, v2, v3);
+        }
+    }
+
+    proof fn lemma_spec_sl_leq5(v0: UInt, v1: UInt, v2: UInt, v3: UInt, v4: UInt)
+        requires v1 == v0 >> 7u64, v2 == v1 >> 7u64, v3 == v2 >> 7u64, v4 == v3 >> 7u64,
+                 Self::spec_serialize_helper(v4).len() <= 1,
+        ensures Self::spec_serialize_helper(v0).len() <= 5,
+    {
+        let hi = v0 >> 7u64;
+        if hi != 0u64 {
+            assert(hi < v0) by (bit_vector) requires hi == v0 >> 7u64, hi != 0u64;
+            assert(hi == v1);
+            Self::lemma_spec_sl_leq4(v1, v2, v3, v4);
+        }
+    }
+
+    proof fn lemma_spec_sl_leq6(v0: UInt, v1: UInt, v2: UInt, v3: UInt, v4: UInt, v5: UInt)
+        requires v1 == v0 >> 7u64, v2 == v1 >> 7u64, v3 == v2 >> 7u64, v4 == v3 >> 7u64,
+                 v5 == v4 >> 7u64, Self::spec_serialize_helper(v5).len() <= 1,
+        ensures Self::spec_serialize_helper(v0).len() <= 6,
+    {
+        let hi = v0 >> 7u64;
+        if hi != 0u64 {
+            assert(hi < v0) by (bit_vector) requires hi == v0 >> 7u64, hi != 0u64;
+            assert(hi == v1);
+            Self::lemma_spec_sl_leq5(v1, v2, v3, v4, v5);
+        }
+    }
+
+    proof fn lemma_spec_sl_leq7(v0: UInt, v1: UInt, v2: UInt, v3: UInt, v4: UInt, v5: UInt, v6: UInt)
+        requires v1 == v0 >> 7u64, v2 == v1 >> 7u64, v3 == v2 >> 7u64, v4 == v3 >> 7u64,
+                 v5 == v4 >> 7u64, v6 == v5 >> 7u64, Self::spec_serialize_helper(v6).len() <= 1,
+        ensures Self::spec_serialize_helper(v0).len() <= 7,
+    {
+        let hi = v0 >> 7u64;
+        if hi != 0u64 {
+            assert(hi < v0) by (bit_vector) requires hi == v0 >> 7u64, hi != 0u64;
+            assert(hi == v1);
+            Self::lemma_spec_sl_leq6(v1, v2, v3, v4, v5, v6);
+        }
+    }
+
+    proof fn lemma_spec_sl_leq8(v0: UInt, v1: UInt, v2: UInt, v3: UInt, v4: UInt, v5: UInt, v6: UInt, v7: UInt)
+        requires v1 == v0 >> 7u64, v2 == v1 >> 7u64, v3 == v2 >> 7u64, v4 == v3 >> 7u64,
+                 v5 == v4 >> 7u64, v6 == v5 >> 7u64, v7 == v6 >> 7u64, Self::spec_serialize_helper(v7).len() <= 1,
+        ensures Self::spec_serialize_helper(v0).len() <= 8,
+    {
+        let hi = v0 >> 7u64;
+        if hi != 0u64 {
+            assert(hi < v0) by (bit_vector) requires hi == v0 >> 7u64, hi != 0u64;
+            assert(hi == v1);
+            Self::lemma_spec_sl_leq7(v1, v2, v3, v4, v5, v6, v7);
+        }
+    }
+
+    proof fn lemma_spec_sl_leq9(v0: UInt, v1: UInt, v2: UInt, v3: UInt, v4: UInt, v5: UInt, v6: UInt, v7: UInt, v8: UInt)
+        requires v1 == v0 >> 7u64, v2 == v1 >> 7u64, v3 == v2 >> 7u64, v4 == v3 >> 7u64,
+                 v5 == v4 >> 7u64, v6 == v5 >> 7u64, v7 == v6 >> 7u64, v8 == v7 >> 7u64,
+                 Self::spec_serialize_helper(v8).len() <= 1,
+        ensures Self::spec_serialize_helper(v0).len() <= 9,
+    {
+        let hi = v0 >> 7u64;
+        if hi != 0u64 {
+            assert(hi < v0) by (bit_vector) requires hi == v0 >> 7u64, hi != 0u64;
+            assert(hi == v1);
+            Self::lemma_spec_sl_leq8(v1, v2, v3, v4, v5, v6, v7, v8);
+        }
+    }
+
+    proof fn lemma_spec_sl_leq10(v0: UInt, v1: UInt, v2: UInt, v3: UInt, v4: UInt, v5: UInt, v6: UInt, v7: UInt, v8: UInt, v9: UInt)
+        requires v1 == v0 >> 7u64, v2 == v1 >> 7u64, v3 == v2 >> 7u64, v4 == v3 >> 7u64,
+                 v5 == v4 >> 7u64, v6 == v5 >> 7u64, v7 == v6 >> 7u64, v8 == v7 >> 7u64,
+                 v9 == v8 >> 7u64, Self::spec_serialize_helper(v9).len() <= 1,
+        ensures Self::spec_serialize_helper(v0).len() <= 10,
+    {
+        let hi = v0 >> 7u64;
+        if hi != 0u64 {
+            assert(hi < v0) by (bit_vector) requires hi == v0 >> 7u64, hi != 0u64;
+            assert(hi == v1);
+            Self::lemma_spec_sl_leq9(v1, v2, v3, v4, v5, v6, v7, v8, v9);
+        }
     }
 
     proof fn lemma_serialize_last_byte_high_8_bit_not_set(&self, v: UInt)
@@ -127,6 +288,18 @@ impl UnsignedLEB128 {
             !is_high_8_bit_set!(self.spec_serialize(v).last()),
         decreases v,
     {
+        let hi: UInt = v >> 7u64;
+        if hi != 0 {
+            assert(hi < v) by (bit_vector) requires hi == v >> 7u64, hi != 0u64;
+            self.lemma_serialize_last_byte_high_8_bit_not_set(hi);
+            // spec_serialize(v) = seq![set_high_8_bit!(lo)] + spec_serialize(hi)
+            // so last element is spec_serialize(hi).last()
+        } else {
+            // hi == 0, spec_serialize(v) = seq![lo] where lo = v as u8 & 0x7f
+            // lo < 0x80, so !is_high_8_bit_set!(lo)
+            let lo: u8 = take_low_7_bits!(v);
+            assert(v >> 7 == 0u64 ==> (v as u8 & 0x7fu8) < 0x80u8) by (bit_vector);
+        }
     }
 
     proof fn lemma_parse_high_8_bits_set_until_last(&self, s: Seq<u8>)
@@ -136,6 +309,27 @@ impl UnsignedLEB128 {
             },
         decreases s.len(),
     {
+        if s.len() != 0 {
+            if is_high_8_bit_set!(s.first()) {
+                self.lemma_parse_high_8_bits_set_until_last(s.drop_first());
+                self.lemma_parse_length(s);
+                if let Some((n, _)) = self.spec_parse(s) {
+                    // n <= s.len()
+                    assert forall|i: int| 0 <= i < n - 1 implies is_high_8_bit_set!(s.spec_index(i)) by {
+                        if i == 0 {
+                            // s[0] has high bit set by the is_high_8_bit_set! precondition
+                        } else {
+                            // i >= 1, i < n - 1 <= s.len() - 1, so i < s.len() - 1 < s.len()
+                            // and i - 1 < n - 2 <= s.drop_first().len() - 1 < s.drop_first().len()
+                            // By IH on drop_first: all bytes at position j < n_drop - 1 have high bit set
+                            // where n_drop = n - 1 (parse of drop_first consumes n-1 bytes)
+                            assert(0 <= i - 1 < s.drop_first().len());
+                            assert(s.spec_index(i) == s.drop_first().spec_index(i - 1));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     proof fn lemma_spec_parse_low_7_bits(&self, s: Seq<u8>)
@@ -147,6 +341,24 @@ impl UnsignedLEB128 {
                 take_low_7_bits!(x) == take_low_7_bits!(s0)
             },
     {
+        let s0: u8 = s[0];
+        // take_low_7_bits!(x) == take_low_7_bits!(s0) expands to:
+        // (x as u8) & 0x7f == s0 & 0x7f
+        // where x: u64. Since x = v2 << 7 | (s0 & 0x7f) or x = (s0 & 0x7f),
+        // in both cases (x as u8) & 0x7f = s0 & 0x7f.
+        if is_high_8_bit_set!(s0) {
+            if let Some((n2, v2)) = self.spec_parse(s.drop_first()) {
+                if n2 < usize::MAX && 0 < v2 <= n_bit_max_unsigned!(8 * uint_size!() - 7) {
+                    let x: UInt = v2 << 7 | (s0 & 0x7fu8) as u64;
+                    assert(take_low_7_bits!(x) == take_low_7_bits!(s0)) by (bit_vector)
+                        requires x == v2 << 7u64 | (s0 & 0x7fu8) as u64;
+                }
+            }
+        } else {
+            let x: UInt = (s0 & 0x7fu8) as u64;
+            assert(take_low_7_bits!(x) == take_low_7_bits!(s0)) by (bit_vector)
+                requires x == (s0 & 0x7fu8) as u64;
+        }
     }
 
     proof fn lemma_spec_parse_non_zero(&self, s: Seq<u8>)
@@ -158,6 +370,20 @@ impl UnsignedLEB128 {
         ensures
             self.spec_parse(s) matches Some((_, x)) ==> x > 1,
     {
+        if s.len() != 0 {
+            let s0: u8 = s[0];
+            if let Some((n2, v2)) = self.spec_parse(s.drop_first()) {
+                if n2 < usize::MAX && 0 < v2 <= n_bit_max_unsigned!(8 * uint_size!() - 7) {
+                    let x: UInt = v2 << 7 | (s0 & 0x7fu8) as u64;
+                    // v2 >= 1 and v2 <= n_bit_max_unsigned!(57) = 2^57 - 1
+                    // so x = v2 << 7 | ... with v2 << 7 >= 128 and no overflow, so x >= 128 > 1
+                    assert(x > 1u64) by (bit_vector)
+                        requires x == v2 << 7u64 | (s0 & 0x7fu8) as u64,
+                                 v2 >= 1u64,
+                                 v2 <= n_bit_max_unsigned!(8 * uint_size!() - 7);
+                }
+            }
+        }
     }
 }
 

@@ -42,6 +42,11 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
             ) is None,
         decreases n2,
     {
+        if n1 <= n2 && self.spec_parse_helper(s, n1) is None {
+            if n2 > 0 && n1 < n2 {
+                self.lemma_spec_parse_err_unrecoverable(s, n1, (n2 - 1) as usize);
+            }
+        }
     }
 }
 
@@ -60,6 +65,38 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
             ),
         decreases vs.len(), n,
     {
+        if self.wf_helper(vs, n) && n > 0 {
+            let vs_prev = vs.drop_last();
+            let v = vs.last();
+            let suf = self.0.spec_serialize(v);
+
+            // spec_serialize(vs) = spec_serialize(vs_prev) + suf
+            assert(self.spec_serialize(vs) == self.spec_serialize(vs_prev) + suf) by {
+                assert(vs.drop_last() == vs_prev);
+                assert(vs.last() == v);
+            };
+
+            let pre = self.spec_serialize(vs_prev);
+            assert(self.wf_helper(vs_prev, (n - 1) as usize));
+
+            // IH: spec_parse_helper(pre, n-1) = Some((pre.len(), vs_prev))
+            self.theorem_serialize_parse_roundtrip_helper(vs_prev, (n - 1) as usize);
+            assert(self.spec_parse_helper(pre, (n - 1) as usize) is Some);
+
+            // prefix_secure: spec_parse_helper(pre + suf, n-1) = spec_parse_helper(pre, n-1)
+            self.lemma_prefix_secure_helper(pre, suf, (n - 1) as usize);
+
+            // self.0.theorem_serialize_parse_roundtrip(v): self.0.spec_parse(suf) = Some((suf.len(), v))
+            self.0.theorem_serialize_parse_roundtrip(v);
+
+            // spec_serialize(vs).skip(pre.len()) = suf
+            let m = pre.len() as int;
+            assert((pre + suf).skip(m) =~= suf);
+
+            // vs = vs_prev.push(v)
+            assert(vs == vs_prev.push(v));
+            assert(pre.len() + suf.len() == (pre + suf).len());
+        }
     }
 
     proof fn theorem_parse_serialize_roundtrip_helper(&self, buf: Seq<u8>, n: usize)
@@ -72,6 +109,30 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
             },
         decreases n,
     {
+        if n > 0 {
+            self.theorem_parse_serialize_roundtrip_helper(buf, (n - 1) as usize);
+            if let Some((m_prev, vs_prev)) = self.spec_parse_helper(buf, (n - 1) as usize) {
+                self.0.theorem_parse_serialize_roundtrip(buf.skip(m_prev as int));
+                if let Some((k, v)) = self.0.spec_parse(buf.skip(m_prev as int)) {
+                    // spec_parse_helper(buf, n) = Some((m_prev + k, vs_prev.push(v)))
+                    // spec_serialize(vs_prev.push(v)) = spec_serialize(vs_prev) + inner.spec_serialize(v)
+                    //   = buf.take(m_prev) + buf.skip(m_prev).take(k) = buf.take(m_prev + k)
+                    let suf = self.0.spec_serialize(v);
+                    assert(self.spec_serialize(vs_prev.push(v)) == self.spec_serialize(vs_prev) + suf) by {
+                        assert(vs_prev.push(v).drop_last() == vs_prev);
+                        assert(vs_prev.push(v).last() == v);
+                    };
+                    assert(suf == buf.skip(m_prev as int).take(k as int));
+                    // m_prev >= 0 and m_prev <= buf.len() from IH
+                    self.lemma_parse_length_helper(buf, (n - 1) as usize);
+                    self.0.lemma_parse_length(buf.skip(m_prev as int));
+                    let m = m_prev as int;
+                    let kk = k as int;
+                    // m >= 0 from parse_length_helper, kk >= 0 from parse_length
+                    assert(buf.take(m) + buf.skip(m).take(kk) =~= buf.take(m + kk));
+                }
+            }
+        }
     }
 
     proof fn lemma_prefix_secure_helper(&self, s1: Seq<u8>, s2: Seq<u8>, n: usize)
@@ -82,6 +143,14 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
                 == self.spec_parse_helper(s1, n),
         decreases n,
     {
+        if n > 0 && self.spec_parse_helper(s1, n) is Some {
+            self.lemma_prefix_secure_helper(s1, s2, (n - 1) as usize);
+            self.lemma_parse_length_helper(s1, (n - 1) as usize);
+            if let Some((m, vs)) = self.spec_parse_helper(s1, (n - 1) as usize) {
+                assert(s1.add(s2).skip(m as int) =~= s1.skip(m as int) + s2);
+                self.0.lemma_prefix_secure(s1.skip(m as int), s2);
+            }
+        }
     }
 
     proof fn lemma_parse_length_helper(&self, s: Seq<u8>, n: usize)
@@ -91,6 +160,12 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
             self.spec_parse_helper(s, n) matches Some((m, _)) ==> 0 <= m <= s.len(),
         decreases n,
     {
+        if n > 0 {
+            self.lemma_parse_length_helper(s, (n - 1) as usize);
+            if let Some((m, _)) = self.spec_parse_helper(s, (n - 1) as usize) {
+                self.0.lemma_parse_length(s.skip(m as int));
+            }
+        }
     }
 
     proof fn lemma_parse_productive_helper(&self, s: Seq<u8>, n: usize)
@@ -102,6 +177,43 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
             n > 0 ==> (self.spec_parse_helper(s, n) matches Some((consumed, _)) ==> consumed > 0),
         decreases n,
     {
+        if n > 0 {
+            if n == 1 {
+                // spec_parse_helper(s, 1):
+                //   spec_parse_helper(s, 0) = Some((0, seq![]))
+                //   self.0.spec_parse(s.skip(0)) = self.0.spec_parse(s)  [since s.skip(0) = s]
+                //   if Some((k, v)), consumed = 0 + k = k > 0 (by productivity)
+                assert(s.skip(0int) =~= s);
+                self.0.lemma_parse_productive(s);
+                // spec_parse_helper(s, 1) definition:
+                assert(self.spec_parse_helper(s, 1usize) ==
+                    (match self.0.spec_parse(s) {
+                        Some((k, v)) => Some((0int + k, seq![].push(v))),
+                        None => None,
+                    })
+                ) by { reveal_with_fuel(RepeatN::spec_parse_helper, 2); };
+            } else {
+                // n > 1: by IH on n-1, consumed_prev > 0.
+                // spec_parse_helper(s, n) = Some((consumed_prev + k, ...)), total > 0.
+                self.lemma_parse_productive_helper(s, (n - 1) as usize);
+                // IH: spec_parse_helper(s, n-1) matches Some((m, _)) ==> m > 0
+                // spec_parse_helper(s, n) = Some((m + k, ...)) with m > 0, k >= 0.
+                // self.0.spec_parse(s.skip(m)) gives k >= 0 from parse_length.
+                if let Some((consumed, _)) = self.spec_parse_helper(s, n) {
+                    // consumed = m + k where m > 0 (from IH) and k >= 0 (from parse_length)
+                    if let Some((m, vs)) = self.spec_parse_helper(s, (n - 1) as usize) {
+                        assert(m > 0);
+                        // spec_parse_helper(s, n) = Some((m + k, ...))
+                        // Since spec_parse_helper is closed, use reveal_with_fuel to unfold
+                        assert(consumed >= m) by {
+                            reveal_with_fuel(RepeatN::spec_parse_helper, 1);
+                            self.0.lemma_parse_length(s.skip(m as int));
+                        };
+                        assert(consumed > 0);
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -192,6 +304,40 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
                 0 <= i < vs.len() ==> self.spec_serialize(vs.take(i as int)).len() <= usize::MAX,
         decreases vs.len(),
     {
+        if vs.len() > 0 {
+            let vs_prev = vs.drop_last();
+            let v_last = vs.last();
+            let suf = self.0.spec_serialize(v_last);
+
+            assert(self.spec_serialize(vs) == self.spec_serialize(vs_prev) + suf) by {
+                assert(vs.drop_last() == vs_prev);
+                assert(vs.last() == v_last);
+            };
+            assert(self.spec_serialize(vs_prev).len() <= usize::MAX);
+            assert(suf.len() <= usize::MAX);
+
+            assert(self.wf_helper(vs_prev, (n - 1) as usize));
+            self.lemma_spec_serialize_max_length(vs_prev, (n - 1) as usize);
+
+            // For i < vs.len() - 1: vs[i] = vs_prev[i], vs.take(i) = vs_prev.take(i)
+            assert forall|i: int| 0 <= i < vs.len() implies self.0.spec_serialize(#[trigger] vs[i]).len() <= usize::MAX by {
+                if i < vs.len() - 1 {
+                    assert(vs[i] == vs_prev[i]);
+                } else {
+                    // i = vs.len() - 1, vs[i] = v_last
+                    assert(vs[i] == v_last);
+                }
+            };
+
+            assert forall|i: int| 0 <= i < vs.len() implies self.spec_serialize(#[trigger] vs.take(i as int)).len() <= usize::MAX by {
+                if i < vs.len() - 1 {
+                    assert(vs.take(i as int) == vs_prev.take(i as int));
+                } else {
+                    // i = vs.len() - 1, vs.take(i) = vs_prev
+                    assert(vs.take(i as int) == vs_prev);
+                }
+            };
+        }
     }
 
     proof fn lemma_spec_serialize_max_length_2(&self, vs: Seq<C::Type>, n: usize)
@@ -206,6 +352,9 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
                     &&& self.spec_serialize(vs.take(i as int)).len() <= usize::MAX
                 },
     {
+        self.lemma_spec_serialize_max_length(vs, n);
+        // For i == vs.len(): vs.take(vs.len()) == vs
+        assert(vs.take(vs.len() as int) == vs);
     }
 }
 
@@ -378,6 +527,53 @@ impl<C: SecureSpecCombinator> Repeat<C> {
             self.spec_serialize(seq![v] + vs) == self.0.spec_serialize(v) + self.spec_serialize(vs)
         decreases vs.len(),
     {
+        let f = |acc: Seq<u8>, x: C::Type| acc + self.0.spec_serialize(x);
+        let all = seq![v] + vs;
+        let gv = self.0.spec_serialize(v);
+
+        // fold_left = fold_left_alt for both all and vs
+        all.lemma_fold_left_alt(Seq::<u8>::empty(), f);
+        vs.lemma_fold_left_alt(Seq::<u8>::empty(), f);
+
+        // all.fold_left_alt(empty, f) = vs.fold_left_alt(f(empty, v), f) = vs.fold_left_alt(gv, f)
+        // This follows from the definition: all[0] = v, all.subrange(1, all.len()) = vs
+        assert(all[0] == v);
+        assert(all.subrange(1, all.len() as int) == vs);
+        // By definition of fold_left_alt (single unfolding for all.len() > 0):
+        // all.fold_left_alt(empty, f) = all.subrange(1, all.len()).fold_left_alt(f(empty, all[0]), f)
+        //                             = vs.fold_left_alt(f(empty, v), f)
+        //                             = vs.fold_left_alt(empty + gv, f)
+        //                             = vs.fold_left_alt(gv, f)
+        assert(all.fold_left_alt(Seq::<u8>::empty(), f) == vs.fold_left_alt(gv, f));
+
+        // vs.fold_left_alt(gv, f) = gv + vs.fold_left_alt(empty, f)
+        Self::lemma_fold_left_alt_shift_init(self.0, vs, gv);
+    }
+
+    proof fn lemma_fold_left_alt_shift_init(c: C, s: Seq<C::Type>, init: Seq<u8>)
+        ensures
+            s.fold_left_alt(init, |acc: Seq<u8>, x: C::Type| acc + c.spec_serialize(x))
+            == init + s.fold_left_alt(Seq::empty(), |acc: Seq<u8>, x: C::Type| acc + c.spec_serialize(x))
+        decreases s.len(),
+    {
+        let f = |acc: Seq<u8>, x: C::Type| acc + c.spec_serialize(x);
+        if s.len() > 0 {
+            let x0 = s[0];
+            let rest = s.subrange(1, s.len() as int);
+            let gx0 = c.spec_serialize(x0);
+
+            // s.fold_left_alt(init, f) = rest.fold_left_alt(init + gx0, f)  [by defn]
+            // s.fold_left_alt(empty, f) = rest.fold_left_alt(gx0, f)  [by defn]
+            // By IH on rest:
+            //   rest.fold_left_alt(init + gx0, f) = (init + gx0) + rest.fold_left_alt(empty, f)
+            //   rest.fold_left_alt(gx0, f) = gx0 + rest.fold_left_alt(empty, f)
+            // So: s.fold_left_alt(init, f) = (init + gx0) + rest.fold_left_alt(empty, f)
+            //                              = init + (gx0 + rest.fold_left_alt(empty, f))
+            //                              = init + s.fold_left_alt(empty, f)
+
+            Self::lemma_fold_left_alt_shift_init(c, rest, init + gx0);
+            Self::lemma_fold_left_alt_shift_init(c, rest, gx0);
+        }
     }
 }
 

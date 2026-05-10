@@ -78,6 +78,7 @@ pub trait SecureSpecCombinator: SpecCombinator {
         ensures
             exists|b: Seq<u8>| #[trigger] self.spec_parse(b) matches Some((_, v_)) && v_ == v,
     {
+        self.theorem_serialize_parse_roundtrip(v);
     }
 
     /// Followed from `theorem_serialize_parse_roundtrip`
@@ -88,6 +89,10 @@ pub trait SecureSpecCombinator: SpecCombinator {
             self.wf(v1) && self.wf(v2) ==> self.spec_serialize(v1) == self.spec_serialize(v2) ==> v1
                 == v2,
     {
+        if self.wf(v1) && self.wf(v2) {
+            self.theorem_serialize_parse_roundtrip(v1);
+            self.theorem_serialize_parse_roundtrip(v2);
+        }
     }
 
     /// Followed from `theorem_serialize_parse_roundtrip`
@@ -98,6 +103,10 @@ pub trait SecureSpecCombinator: SpecCombinator {
             self.wf(v1) && self.wf(v2) ==> v1 != v2 ==> self.spec_serialize(v1)
                 != self.spec_serialize(v2),
     {
+        if self.wf(v1) && self.wf(v2) {
+            self.theorem_serialize_parse_roundtrip(v1);
+            self.theorem_serialize_parse_roundtrip(v2);
+        }
     }
 
     /// One of the top-level roundtrip properties
@@ -179,6 +188,10 @@ pub trait SecureSpecCombinator: SpecCombinator {
         ensures
             self.is_productive() ==> self.spec_serialize(v).len() > 0,
     {
+        if self.is_productive() {
+            self.theorem_serialize_parse_roundtrip(v);
+            self.lemma_parse_productive(self.spec_serialize(v));
+        }
     }
 }
 
