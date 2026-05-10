@@ -202,20 +202,10 @@ pub fn set_range<'a>(data: &mut Vec<u8>, i: usize, input: &[u8])
     // data[i..i + input.len()].copy_from_slice(input);
     let mut j = 0;
     while j < input.len()
-        invariant
-            data@.len() == old(data)@.len(),
-            forall|k| 0 <= k < i ==> data@[k] == old(data)@[k],
-            forall|k| i + input@.len() <= k < data@.len() ==> data@[k] == old(data)@[k],
-            0 <= i <= i + j <= i + input@.len() <= data@.len() <= usize::MAX,
-            forall|k| 0 <= k < j ==> data@[i + k] == input@[k],
-        decreases input@.len() - j,
     {
         data.set(i + j, *slice_index_get(input, j));
-        j = j + 1
+        j = j + 1;
     }
-    assert(data@ =~= old(data)@.subrange(0, i as int).add(input@).add(
-        old(data)@.subrange(i + input@.len(), data@.len() as int),
-    ))
 }
 
 /// Helper function to compare two slices.
@@ -224,22 +214,13 @@ pub fn compare_slice<'a, 'b>(x: &'a [u8], y: &'a [u8]) -> (res: bool)
         res == (x@ =~= y@),
 {
     if x.len() != y.len() {
-        assert(x@.len() != y@.len());
         return false;
     }
     for i in 0..x.len()
-        invariant
-            0 <= i <= x.len(),
-            x.len() == y.len(),
-            forall|j: int| 0 <= j < i ==> x@[j] == y@[j],
     {
         if slice_index_get(x, i) != slice_index_get(y, i) {
-            assert(x@[i as int] != y@[i as int]);
             return false;
         }
-    }
-    proof {
-        assert(x@ =~= y@);
     }
     true
 }
@@ -261,13 +242,8 @@ pub exec fn init_vec_u8(n: usize) -> (res: Vec<u8>)
     let mut i: usize = 0;
     let mut ret: Vec<u8> = Vec::new();
     while i < n
-        invariant
-            0 <= i <= n,
-            ret@.len() == i,
-        decreases n - i,
     {
         ret.push(0);
-        assert(ret@[i as int] == 0);
         i = i + 1
     }
     ret

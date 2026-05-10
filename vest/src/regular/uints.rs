@@ -1180,9 +1180,6 @@ proof fn bytes_eq_view_implies_eq<const N: usize>(a: [u8; N], b: [u8; N])
     ensures
         a@ =~= b@ <==> a == b,
 {
-    if a@ == b@ {
-        assert(a == b);
-    }
 }
 
 impl<'x> Combinator<'x, &[u8], Vec<u8>> for U24Be {

@@ -42,10 +42,6 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
             ) is None,
         decreases n2,
     {
-        if n2 == n1 {
-        } else if n2 > n1 {
-            self.lemma_spec_parse_err_unrecoverable(s, n1, (n2 - 1) as usize);
-        }
     }
 }
 
@@ -64,28 +60,6 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
             ),
         decreases vs.len(), n,
     {
-        if self.wf_helper(vs, n) {
-            if vs.len() == 0 {
-                assert(self.spec_parse_helper(self.spec_serialize(vs), n) == Some(
-                    (self.spec_serialize(vs).len() as int, vs),
-                ));
-            } else {
-                assert(n != 0);
-                let (v_, vs_) = (vs.last(), vs.drop_last());
-                self.0.theorem_serialize_parse_roundtrip(v_);  // <-- Base
-                self.theorem_serialize_parse_roundtrip_helper(vs_, (n - 1) as usize);  // <-- I.H.
-                let buf0 = self.0.spec_serialize(v_);
-                let buf1 = self.spec_serialize(vs_);
-                let (n0, n1) = (buf0.len() as int, buf1.len() as int);
-                assert(vs_.push(v_) == vs);  // <-- (1).
-                assert(self.spec_serialize(vs) == buf1 + buf0);  // <-- from (0) and (1)
-                assert(self.0.spec_parse(buf0) == Some((n0, v_)));  // <-- from Base
-                assert(self.spec_parse_helper(buf1, (n - 1) as usize) == Some((n1, vs_)));  // <-- from I.H.
-                self.lemma_prefix_secure_helper(buf1, buf0, (n - 1) as usize);
-                assert((buf1 + buf0).skip(n1) == buf0);
-                assert(self.spec_parse_helper(buf1 + buf0, n) == Some((n0 + n1, vs)));
-            }
-        }
     }
 
     proof fn theorem_parse_serialize_roundtrip_helper(&self, buf: Seq<u8>, n: usize)
@@ -98,22 +72,6 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
             },
         decreases n,
     {
-        if n == 0 {
-            assert(buf.take(0) == Seq::<u8>::empty());
-        } else {
-            self.lemma_parse_length_helper(buf, n);  // <-- key
-            self.lemma_parse_length_helper(buf, (n - 1) as usize);  // <-- key
-            self.theorem_parse_serialize_roundtrip_helper(buf, (n - 1) as usize);  // <-- I.H.
-            if let Some((m, vs)) = self.spec_parse_helper(buf, (n - 1) as usize) {
-                self.0.lemma_parse_length(buf.skip(m as int));  // <-- key
-                if let Some((k, v)) = self.0.spec_parse(buf.skip(m as int)) {
-                    assert(vs.push(v).drop_last() == vs);
-                    self.0.theorem_parse_serialize_roundtrip(buf.skip(m as int));  // <-- Base
-                    assert(vs.push(v).last() == v);
-                    assert(buf.take(m + k) == buf.take(m) + buf.skip(m).take(k));
-                }
-            }
-        }
     }
 
     proof fn lemma_prefix_secure_helper(&self, s1: Seq<u8>, s2: Seq<u8>, n: usize)
@@ -124,18 +82,6 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
                 == self.spec_parse_helper(s1, n),
         decreases n,
     {
-        if n == 0 {
-        } else {
-            self.lemma_prefix_secure_helper(s1, s2, (n - 1) as usize);
-            self.lemma_parse_length_helper(s1, (n - 1) as usize);
-            self.lemma_parse_length_helper(s1.add(s2), (n - 1) as usize);
-            if let Some((m1, vs1)) = self.spec_parse_helper(s1, (n - 1) as usize) {
-                self.0.lemma_prefix_secure(s1.skip(m1 as int), s2);
-                if let Some((m2, vs2)) = self.spec_parse_helper(s1.add(s2), (n - 1) as usize) {
-                    assert(s1.skip(m1 as int).add(s2) == s1.add(s2).skip(m2 as int));
-                }
-            }
-        }
     }
 
     proof fn lemma_parse_length_helper(&self, s: Seq<u8>, n: usize)
@@ -145,16 +91,6 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
             self.spec_parse_helper(s, n) matches Some((m, _)) ==> 0 <= m <= s.len(),
         decreases n,
     {
-        if n == 0 {
-        } else {
-            self.lemma_parse_length_helper(s, (n - 1) as usize);
-            match self.spec_parse_helper(s, (n - 1) as usize) {
-                Some((m, vs)) => {
-                    self.0.lemma_parse_length(s.skip(m as int));
-                },
-                None => {},
-            }
-        }
     }
 
     proof fn lemma_parse_productive_helper(&self, s: Seq<u8>, n: usize)
@@ -166,16 +102,6 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
             n > 0 ==> (self.spec_parse_helper(s, n) matches Some((consumed, _)) ==> consumed > 0),
         decreases n,
     {
-        if n == 0 {
-        } else {
-            self.lemma_parse_productive_helper(s, (n - 1) as usize);
-            match self.spec_parse_helper(s, (n - 1) as usize) {
-                Some((m, vs)) => {
-                    self.0.lemma_parse_productive(s.skip(m as int));
-                },
-                None => {},
-            }
-        }
     }
 }
 
@@ -266,49 +192,6 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
                 0 <= i < vs.len() ==> self.spec_serialize(vs.take(i as int)).len() <= usize::MAX,
         decreases vs.len(),
     {
-        if vs.len() == 0 {
-            assert(vs == Seq::<C::Type>::empty());
-        } else {
-            let (v_, vs_) = (vs.last(), vs.drop_last());
-            assert(vs_ =~= vs.take(vs_.len() as int));
-            self.lemma_spec_serialize_max_length(vs_, (n - 1) as usize);
-            assert forall|i: int| #![auto] 0 <= i < vs.len() implies {
-                self.0.spec_serialize(vs[i]).len() <= usize::MAX
-            } by {
-                assert forall|i: int| #![auto] 0 <= i < vs.len() - 1 implies {
-                    self.0.spec_serialize(vs.drop_last()[i]).len() <= usize::MAX
-                } by {}
-                assert(forall|i: int|
-                    #![auto]
-                    0 <= i < vs.len() - 1 ==> vs.drop_last()[i] == vs[i]);
-                assert(forall|i: int|
-                    #![auto]
-                    0 <= i < vs.len() - 1 ==> vs.drop_last().take(i as int) == vs.take(i as int));
-                assert(self.spec_serialize(vs_).len() <= usize::MAX);
-                assert(self.spec_serialize(vs) == self.spec_serialize(vs_) + self.0.spec_serialize(
-                    v_,
-                ));
-                let last_len = self.0.spec_serialize(v_).len();
-                if last_len > usize::MAX {
-                    assert(self.spec_serialize(vs).len() > usize::MAX);
-                    assert(false);
-                }
-                assert(last_len <= usize::MAX);
-            }
-            assert forall|i: int| #![auto] 0 <= i < vs.len() implies {
-                self.spec_serialize(vs.take(i as int)).len() <= usize::MAX
-            } by {
-                assert forall|i: int| #![auto] 0 <= i < vs.len() - 1 implies {
-                    self.spec_serialize(vs.drop_last().take(i as int)).len() <= usize::MAX
-                } by {}
-                assert(forall|i: int|
-                    #![auto]
-                    0 <= i < vs.len() - 1 ==> vs.drop_last()[i] == vs[i]);
-                assert(forall|i: int|
-                    #![auto]
-                    0 <= i < vs.len() - 1 ==> vs.drop_last().take(i as int) == vs.take(i as int));
-            }
-        }
     }
 
     proof fn lemma_spec_serialize_max_length_2(&self, vs: Seq<C::Type>, n: usize)
@@ -323,8 +206,6 @@ impl<C: SecureSpecCombinator> RepeatN<C> {
                     &&& self.spec_serialize(vs.take(i as int)).len() <= usize::MAX
                 },
     {
-        self.lemma_spec_serialize_max_length(vs, n);
-        assert(vs.take(vs.len() as int) == vs);
     }
 }
 
@@ -497,25 +378,6 @@ impl<C: SecureSpecCombinator> Repeat<C> {
             self.spec_serialize(seq![v] + vs) == self.0.spec_serialize(v) + self.spec_serialize(vs)
         decreases vs.len(),
     {
-        if vs.len() == 0 {
-            assert(vs == Seq::<C::Type>::empty());
-            assert(seq![v].drop_last() == Seq::<C::Type>::empty());
-        } else {
-            let vs_ = vs.drop_last();
-            let v_ = vs.last();
-            self.lemma_serialize_add(v, vs_);
-             // (1) I.H.
-            assert(self.spec_serialize(seq![v] + vs_) == self.0.spec_serialize(v) + self.spec_serialize(vs_));
-             // (2) "expand" `fold_left`
-            assert(self.spec_serialize(vs) == self.spec_serialize(vs_) + self.0.spec_serialize((v_)));
-             // by (1) and (2)
-            assert(self.spec_serialize(seq![v] + vs_) + self.0.spec_serialize((v_))
-                == self.0.spec_serialize(v) + self.spec_serialize(vs));
-            assert(seq![v] + vs == (seq![v] + vs_).push(v_));
-            assert(self.spec_serialize((seq![v] + vs_).push(v_))
-                == self.spec_serialize(seq![v] + vs_) + self.0.spec_serialize((v_)))
-            by { assert((seq![v] + vs_).push(v_).drop_last() == seq![v] + vs_); }
-        }
     }
 }
 

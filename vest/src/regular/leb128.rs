@@ -120,8 +120,6 @@ impl UnsignedLEB128 {
         ensures
             self.spec_serialize(v).len() <= 10,
     {
-        reveal_with_fuel(UnsignedLEB128::spec_serialize_helper, 10);
-        assert(v >> 7 >> 7 >> 7 >> 7 >> 7 >> 7 >> 7 >> 7 >> 7 >> 7 == 0) by (bit_vector);
     }
 
     proof fn lemma_serialize_last_byte_high_8_bit_not_set(&self, v: UInt)
@@ -129,18 +127,6 @@ impl UnsignedLEB128 {
             !is_high_8_bit_set!(self.spec_serialize(v).last()),
         decreases v,
     {
-        let lo = take_low_7_bits!(v);
-        let hi = v >> 7;
-
-        if hi == 0 {
-            assert(!is_high_8_bit_set!(take_low_7_bits!(v))) by (bit_vector);
-            assert(self.spec_serialize(v) == seq![lo]);
-        } else {
-            let s = Self::spec_serialize_helper(hi);
-            assert(Self::spec_serialize_helper(v) == seq![set_high_8_bit!(lo)] + s);
-            assert(v >> 7 != 0 ==> v >> 7 < v) by (bit_vector);
-            self.lemma_serialize_last_byte_high_8_bit_not_set(hi);
-        }
     }
 
     proof fn lemma_parse_high_8_bits_set_until_last(&self, s: Seq<u8>)
@@ -150,21 +136,6 @@ impl UnsignedLEB128 {
             },
         decreases s.len(),
     {
-        if let Some((n, v)) = self.spec_parse(s) {
-            assert(n <= s.len()) by { self.lemma_parse_length(s) };
-            let s0 = s[0];
-            if n == 1 {
-                // assert(!is_high_8_bit_set!(s0));
-                if (is_high_8_bit_set!(s0)) {
-                    assert(self.spec_parse(s.drop_first()) matches Some((n1, _)) && n1 == 0);
-                    self.lemma_parse_productive(s.drop_first());
-                }
-            } else {
-                assert(is_high_8_bit_set!(s0));
-                self.lemma_parse_high_8_bits_set_until_last(s.drop_first());
-                assert_seqs_equal!(s == seq![s0] + s.drop_first());
-            }
-        }
     }
 
     proof fn lemma_spec_parse_low_7_bits(&self, s: Seq<u8>)
@@ -176,15 +147,6 @@ impl UnsignedLEB128 {
                 take_low_7_bits!(x) == take_low_7_bits!(s0)
             },
     {
-        let s0 = s[0];
-        if is_high_8_bit_set!(s0) {
-            if let Some((_, rest)) = self.spec_parse(s.drop_first()) {
-                assert(take_low_7_bits!(rest << 7 | take_low_7_bits!(s0) as UInt)
-                    == take_low_7_bits!(s0)) by (bit_vector);
-            }
-        } else {
-            assert(take_low_7_bits!(take_low_7_bits!(s0)) == take_low_7_bits!(s0)) by (bit_vector);
-        }
     }
 
     proof fn lemma_spec_parse_non_zero(&self, s: Seq<u8>)
@@ -196,13 +158,6 @@ impl UnsignedLEB128 {
         ensures
             self.spec_parse(s) matches Some((_, x)) ==> x > 1,
     {
-        if let Some((_, x)) = self.spec_parse(s) {
-            let (_, rest) = self.spec_parse(s.drop_first()).unwrap();
-            let s0 = s[0];
-
-            assert(0 < rest <= n_bit_max_unsigned!(8 * uint_size!() - 7) ==> rest << 7
-                | take_low_7_bits!(s0) as UInt > 1) by (bit_vector);
-        }
     }
 }
 
